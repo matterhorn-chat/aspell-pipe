@@ -14,6 +14,7 @@ module Text.Aspell
   , AspellResponse(..)
   , Mistake(..)
   , startAspell
+  , stopAspell
   , aspellIdentification
   )
 where
