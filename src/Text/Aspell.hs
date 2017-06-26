@@ -124,9 +124,10 @@ parseWithAlternatives t =
         nearMisses = fromJust $ readMaybe $ T.unpack nearMissesStr
     in Mistake { mistakeWord = orig
                , mistakeNearMisses = nearMisses
-               -- Aspell's offset starts at 1, but to make it
-               -- compatible with all other APIs we subtract one to
-               -- make it start at 0.
+               -- Aspell's offset starts at 1 here because of the "^"
+               -- we included in the input. Here we adjust the offset
+               -- so that it's relative to the beginning of the user's
+               -- input, not our protocol input.
                , mistakeOffset = offset - 1
                , mistakeAlternatives = alts
                }
