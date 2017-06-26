@@ -83,7 +83,7 @@ startAspell = do
 stopAspell :: Aspell -> IO ()
 stopAspell = P.terminateProcess . aspellProcessHandle
 
-askAspell :: Aspell -> T.Text -> IO (Either String AspellResponse)
+askAspell :: Aspell -> T.Text -> IO AspellResponse
 askAspell as t = do
     -- Send the user's input. Prefix with "^" to ensure that the line is
     -- checked even if it contains metacharacters.
@@ -95,8 +95,8 @@ askAspell as t = do
     resultLines <- readLinesUntil (aspellStdout as) T.null
 
     case resultLines of
-        [] -> return $ Right AllCorrect
-        _ -> return $ Right $ Mistakes $ parseMistake <$> resultLines
+        [] -> return AllCorrect
+        _ -> return $ Mistakes $ parseMistake <$> resultLines
 
 parseMistake :: T.Text -> Mistake
 parseMistake t
