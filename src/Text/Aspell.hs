@@ -12,7 +12,8 @@
 module Text.Aspell
   ( Aspell
   , AspellResponse(..)
-  , Suggestion(..)
+  , Mistake(..)
+  , startAspell
   , aspellIdentification
   )
 where
@@ -42,16 +43,16 @@ instance Show Aspell where
 
 data AspellResponse =
     AllCorrect
-    | Suggestions [Suggestion]
+    | Mistakes [Mistake]
     deriving (Eq, Show)
 
-data Suggestion =
-    Suggestion { suggestionWord         :: T.Text
-               , suggestionNearMisses   :: Int
-               , suggestionOffset       :: Int
-               , suggestionAlternatives :: [T.Text]
-               }
-               deriving (Show, Eq)
+data Mistake =
+    Mistake { mistakeWord         :: T.Text
+            , mistakeNearMisses   :: Int
+            , mistakeOffset       :: Int
+            , mistakeAlternatives :: [T.Text]
+            }
+            deriving (Show, Eq)
 
 startAspell :: IO (Either String Aspell)
 startAspell = do
@@ -93,14 +94,14 @@ askAspell as t = do
 
     case resultLines of
         [] -> return $ Right AllCorrect
-        _ -> return $ Right $ Suggestions $ parseSuggestion <$> resultLines
+        _ -> return $ Right $ Mistakes $ parseMistake <$> resultLines
 
-parseSuggestion :: T.Text -> Suggestion
-parseSuggestion t
+parseMistake :: T.Text -> Mistake
+parseMistake t
     | "&" `T.isPrefixOf` t = parseWithAlternatives t
     | "#" `T.isPrefixOf` t = parseWithoutAlternatives t
 
-parseWithAlternatives :: T.Text -> Suggestion
+parseWithAlternatives :: T.Text -> Mistake
 parseWithAlternatives t =
     let (header, altsWithColon) = T.breakOn ": " t
         altsStr = T.drop 2 altsWithColon
@@ -108,24 +109,24 @@ parseWithAlternatives t =
         alts = T.splitOn ", " altsStr
         offset = fromJust $ readMaybe $ T.unpack offsetStr
         nearMisses = fromJust $ readMaybe $ T.unpack nearMissesStr
-    in Suggestion { suggestionWord = orig
-                  , suggestionNearMisses = nearMisses
-                  -- Aspell's offset starts at 1, but to make it
-                  -- compatible with all other APIs we subtract one to
-                  -- make it start at 0.
-                  , suggestionOffset = offset - 1
-                  , suggestionAlternatives = alts
-                  }
+    in Mistake { mistakeWord = orig
+               , mistakeNearMisses = nearMisses
+               -- Aspell's offset starts at 1, but to make it
+               -- compatible with all other APIs we subtract one to
+               -- make it start at 0.
+               , mistakeOffset = offset - 1
+               , mistakeAlternatives = alts
+               }
 
-parseWithoutAlternatives :: T.Text -> Suggestion
+parseWithoutAlternatives :: T.Text -> Mistake
 parseWithoutAlternatives t =
     let ["#", orig, offsetStr] = T.words t
         offset = fromJust $ readMaybe $ T.unpack offsetStr
-    in Suggestion { suggestionWord = orig
-                  , suggestionNearMisses = 0
-                  , suggestionOffset = offset
-                  , suggestionAlternatives = []
-                  }
+    in Mistake { mistakeWord = orig
+               , mistakeNearMisses = 0
+               , mistakeOffset = offset
+               , mistakeAlternatives = []
+               }
 
 readLinesUntil :: Handle -> (T.Text -> Bool) -> IO [T.Text]
 readLinesUntil h f = do
