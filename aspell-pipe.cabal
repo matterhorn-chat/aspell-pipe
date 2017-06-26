@@ -1,6 +1,8 @@
 name:                aspell-pipe
 version:             0.1
 synopsis:            Pipe-based interface to the Aspell program
+description:         A pipe-based interface to the Aspell program (no
+                     dynamic linking required).
 license:             BSD3
 license-file:        LICENSE
 author:              Jonathan Daugherty
