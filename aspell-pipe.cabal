@@ -1,0 +1,22 @@
+name:                aspell-pipe
+version:             0.1
+synopsis:            Pipe-based interface to the Aspell program
+license:             BSD3
+license-file:        LICENSE
+author:              Jonathan Daugherty
+maintainer:          jtd@galois.com
+copyright:           2017 Jonathan Daugherty
+category:            Text
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:
+    Text.Aspell
+
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  build-depends:       base >=4.8 && <4.9,
+                       process >= 1.6,
+                       text
