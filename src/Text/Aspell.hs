@@ -13,6 +13,7 @@ module Text.Aspell
   ( Aspell
   , AspellResponse(..)
   , Mistake(..)
+  , AspellOption(..)
   , startAspell
   , stopAspell
   , askAspell
@@ -56,9 +57,13 @@ data Mistake =
             }
             deriving (Show, Eq)
 
-startAspell :: IO (Either String Aspell)
-startAspell = do
-    let proc = (P.proc "aspell" ["-a"])
+data AspellOption =
+    UseDictionary T.Text
+    deriving (Show, Eq)
+
+startAspell :: [AspellOption] -> IO (Either String Aspell)
+startAspell options = do
+    let proc = (P.proc "aspell" ("-a" : (concat $ optionToArgs <$> options)))
                { P.std_in = P.CreatePipe
                , P.std_out = P.CreatePipe
                , P.std_err = P.NoStream
@@ -68,17 +73,23 @@ startAspell = do
     case result of
         Left (e::E.SomeException) -> return $ Left $ show e
         Right (Just inH, Just outH, Nothing, ph) -> do
-            ident <- T.hGetLine outH
-            let as = Aspell { aspellProcessHandle  = ph
-                            , aspellStdin          = inH
-                            , aspellStdout         = outH
-                            , aspellIdentification = ident
-                            }
+            identResult <- E.try $ T.hGetLine outH
+            case identResult of
+                Left (e::E.SomeException) -> return $ Left $ show e
+                Right ident -> do
+                    let as = Aspell { aspellProcessHandle  = ph
+                                    , aspellStdin          = inH
+                                    , aspellStdout         = outH
+                                    , aspellIdentification = ident
+                                    }
 
-            -- Enable terse mode with aspell to improve performance.
-            T.hPutStrLn inH "!"
+                    -- Enable terse mode with aspell to improve performance.
+                    T.hPutStrLn inH "!"
 
-            return $ Right as
+                    return $ Right as
+
+optionToArgs :: AspellOption -> [String]
+optionToArgs (UseDictionary d) = ["-d", T.unpack d]
 
 stopAspell :: Aspell -> IO ()
 stopAspell = P.terminateProcess . aspellProcessHandle
