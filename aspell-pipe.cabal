@@ -15,6 +15,10 @@ cabal-version:       >=1.10
 
 extra-doc-files:     README.md
 
+source-repository    head
+  type: git
+  location: https://github.com/matterhorn-chat/aspell-pipe.git
+
 library
   exposed-modules:
     Text.Aspell
