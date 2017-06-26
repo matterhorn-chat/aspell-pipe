@@ -22,6 +22,7 @@ module Text.Aspell
 where
 
 import qualified Control.Exception as E
+import Control.Monad (forM)
 import Data.Monoid ((<>))
 import Data.Maybe (fromJust)
 import Text.Read (readMaybe)
@@ -110,21 +111,23 @@ optionToArgs (UseDictionary d) = ["-d", T.unpack d]
 stopAspell :: Aspell -> IO ()
 stopAspell = P.terminateProcess . aspellProcessHandle
 
--- | Submit user input to Aspell for spell-checking.
-askAspell :: Aspell -> T.Text -> IO AspellResponse
+-- | Submit user input to Aspell for spell-checking. Returns an
+-- AspellResponse for each line of user input.
+askAspell :: Aspell -> T.Text -> IO [AspellResponse]
 askAspell as t = do
     -- Send the user's input. Prefix with "^" to ensure that the line is
     -- checked even if it contains metacharacters.
-    T.hPutStrLn (aspellStdin as) ("^" <> t)
-    hFlush (aspellStdin as)
+    forM (T.lines t) $ \theLine -> do
+        T.hPutStrLn (aspellStdin as) ("^" <> theLine)
+        hFlush (aspellStdin as)
 
-    -- Read lines until we get an empty one, which indicates that aspell
-    -- is done with the request.
-    resultLines <- readLinesUntil (aspellStdout as) T.null
+        -- Read lines until we get an empty one, which indicates that aspell
+        -- is done with the request.
+        resultLines <- readLinesUntil (aspellStdout as) T.null
 
-    case resultLines of
-        [] -> return AllCorrect
-        _ -> return $ Mistakes $ parseMistake <$> resultLines
+        case resultLines of
+            [] -> return AllCorrect
+            _ -> return $ Mistakes $ parseMistake <$> resultLines
 
 parseMistake :: T.Text -> Mistake
 parseMistake t
