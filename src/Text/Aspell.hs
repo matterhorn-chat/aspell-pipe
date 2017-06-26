@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | A pipe-based interface to Aspell.
 --
--- This interface is helpful when dynamic linking against the Aspell
+-- This interface is beneficial when dynamic linking against the Aspell
 -- library would be undesirable, e.g., for binary portability reasons.
 --
 -- This implementation is based on the description of the Aspell pipe
@@ -31,6 +31,7 @@ import qualified Data.Text.IO as T
 
 import qualified System.Process as P
 
+-- | A handle to a running Aspell instance.
 data Aspell =
     Aspell { aspellProcessHandle  :: P.ProcessHandle
            , aspellStdin          :: Handle
@@ -44,23 +45,37 @@ instance Show Aspell where
                       , ">"
                       ]
 
+-- | The kind of responses we can get from Aspell.
 data AspellResponse =
     AllCorrect
+    -- ^ The input had no spelling mistakes.
     | Mistakes [Mistake]
+    -- ^ The input had the specified mistakes.
     deriving (Eq, Show)
 
+-- | A spelling mistake.
 data Mistake =
     Mistake { mistakeWord         :: T.Text
+            -- ^ The original word in misspelled form.
             , mistakeNearMisses   :: Int
+            -- ^ The number of alternative correct spellings that were
+            -- counted.
             , mistakeOffset       :: Int
+            -- ^ The offset, starting at zero, in the original input
+            -- where this misspelling occurred.
             , mistakeAlternatives :: [T.Text]
+            -- ^ The correct spelling alternatives.
             }
             deriving (Show, Eq)
 
+-- | An Aspell option.
 data AspellOption =
     UseDictionary T.Text
+    -- ^ Use the specified dictionary (see aspell -d).
     deriving (Show, Eq)
 
+-- | Start Aspell with the specified options. Returns either an error
+-- message on failure or an Aspell handle on success.
 startAspell :: [AspellOption] -> IO (Either String Aspell)
 startAspell options = do
     let proc = (P.proc "aspell" ("-a" : (concat $ optionToArgs <$> options)))
@@ -91,9 +106,11 @@ startAspell options = do
 optionToArgs :: AspellOption -> [String]
 optionToArgs (UseDictionary d) = ["-d", T.unpack d]
 
+-- | Stop a running Aspell instance.
 stopAspell :: Aspell -> IO ()
 stopAspell = P.terminateProcess . aspellProcessHandle
 
+-- | Submit user input to Aspell for spell-checking.
 askAspell :: Aspell -> T.Text -> IO AspellResponse
 askAspell as t = do
     -- Send the user's input. Prefix with "^" to ensure that the line is
