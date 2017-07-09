@@ -1,4 +1,18 @@
 
+0.3
+---
+
+API changes:
+ * Added 'aspellDictionaries' to obtain the list of installed
+   dictionaries.
+
+Other changes:
+ * startAspell now gracefully handles Aspell startup failures by
+   reporting Aspell's standard error output in the event of a failed
+   startup. It also sanity-checks the Aspell pipe mode identification
+   string. (Fixes #2, #3.)
+
+
 0.2
 ---
 
