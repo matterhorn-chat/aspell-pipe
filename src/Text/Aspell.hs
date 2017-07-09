@@ -75,34 +75,37 @@ data AspellOption =
     -- ^ Use the specified dictionary (see aspell -d).
     deriving (Show, Eq)
 
+tryConvert :: IO a -> IO (Either String a)
+tryConvert act = do
+    result <- E.try act
+    return $ either (Left . showException) Right result
+
+showException :: E.SomeException -> String
+showException = show
+
 -- | Start Aspell with the specified options. Returns either an error
 -- message on failure or an Aspell handle on success.
 startAspell :: [AspellOption] -> IO (Either String Aspell)
-startAspell options = do
+startAspell options = tryConvert $ do
     let proc = (P.proc "aspell" ("-a" : (concat $ optionToArgs <$> options)))
                { P.std_in = P.CreatePipe
                , P.std_out = P.CreatePipe
                , P.std_err = P.NoStream
                }
 
-    result <- E.try $ P.createProcess proc
-    case result of
-        Left (e::E.SomeException) -> return $ Left $ show e
-        Right (Just inH, Just outH, Nothing, ph) -> do
-            identResult <- E.try $ T.hGetLine outH
-            case identResult of
-                Left (e::E.SomeException) -> return $ Left $ show e
-                Right ident -> do
-                    let as = Aspell { aspellProcessHandle  = ph
-                                    , aspellStdin          = inH
-                                    , aspellStdout         = outH
-                                    , aspellIdentification = ident
-                                    }
+    (Just inH, Just outH, Nothing, ph) <- P.createProcess proc
+    ident <- T.hGetLine outH
 
-                    -- Enable terse mode with aspell to improve performance.
-                    T.hPutStrLn inH "!"
+    let as = Aspell { aspellProcessHandle  = ph
+                    , aspellStdin          = inH
+                    , aspellStdout         = outH
+                    , aspellIdentification = ident
+                    }
 
-                    return $ Right as
+    -- Enable terse mode with aspell to improve performance.
+    T.hPutStrLn inH "!"
+
+    return as
 
 optionToArgs :: AspellOption -> [String]
 optionToArgs (UseDictionary d) = ["-d", T.unpack d]
