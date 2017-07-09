@@ -75,14 +75,6 @@ data AspellOption =
     -- ^ Use the specified dictionary (see aspell -d).
     deriving (Show, Eq)
 
-tryConvert :: IO a -> IO (Either String a)
-tryConvert act = do
-    result <- E.try act
-    return $ either (Left . showException) Right result
-
-showException :: E.SomeException -> String
-showException = show
-
 -- | Start Aspell with the specified options. Returns either an error
 -- message on failure or an Aspell handle on success.
 startAspell :: [AspellOption] -> IO (Either String Aspell)
@@ -173,3 +165,11 @@ readLinesUntil h f = do
         False -> do
             rest <- readLinesUntil h f
             return $ line : rest
+
+tryConvert :: IO a -> IO (Either String a)
+tryConvert act = do
+    result <- E.try act
+    return $ either (Left . showException) Right result
+
+showException :: E.SomeException -> String
+showException = show
