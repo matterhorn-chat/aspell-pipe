@@ -2,6 +2,9 @@
 0.3
 ---
 
+Package changes:
+ * Relaxed process lower bound to version 1.3.
+
 API changes:
  * Added 'aspellDictionaries' to obtain the list of installed
    dictionaries.
