@@ -18,11 +18,12 @@ module Text.Aspell
   , stopAspell
   , askAspell
   , aspellIdentification
+  , aspellDictionaries
   )
 where
 
 import qualified Control.Exception as E
-import Control.Monad (forM)
+import Control.Monad (forM, when)
 import Data.Monoid ((<>))
 import Data.Maybe (fromJust)
 import Text.Read (readMaybe)
@@ -78,26 +79,59 @@ data AspellOption =
 -- | Start Aspell with the specified options. Returns either an error
 -- message on failure or an Aspell handle on success.
 startAspell :: [AspellOption] -> IO (Either String Aspell)
-startAspell options = tryConvert $ do
-    let proc = (P.proc "aspell" ("-a" : (concat $ optionToArgs <$> options)))
-               { P.std_in = P.CreatePipe
-               , P.std_out = P.CreatePipe
-               , P.std_err = P.NoStream
-               }
+startAspell options = do
+    optResult <- checkOptions options
+    case optResult of
+        Just e -> return $ Left e
+        Nothing -> tryConvert $ do
+            let proc = (P.proc aspellCommand ("-a" : (concat $ optionToArgs <$> options)))
+                       { P.std_in = P.CreatePipe
+                       , P.std_out = P.CreatePipe
+                       , P.std_err = P.NoStream
+                       }
 
-    (Just inH, Just outH, Nothing, ph) <- P.createProcess proc
-    ident <- T.hGetLine outH
+            (Just inH, Just outH, Nothing, ph) <- P.createProcess proc
+            ident <- T.hGetLine outH
 
-    let as = Aspell { aspellProcessHandle  = ph
-                    , aspellStdin          = inH
-                    , aspellStdout         = outH
-                    , aspellIdentification = ident
-                    }
+            let as = Aspell { aspellProcessHandle  = ph
+                            , aspellStdin          = inH
+                            , aspellStdout         = outH
+                            , aspellIdentification = ident
+                            }
 
-    -- Enable terse mode with aspell to improve performance.
-    T.hPutStrLn inH "!"
+            -- Enable terse mode with aspell to improve performance.
+            T.hPutStrLn inH "!"
 
-    return as
+            return as
+
+checkOptions :: [AspellOption] -> IO (Maybe String)
+checkOptions [] = return Nothing
+checkOptions (o:os) = do
+    result <- checkOption o
+    case result of
+        Nothing -> checkOptions os
+        Just msg -> return $ Just msg
+
+aspellCommand :: String
+aspellCommand = "aspell"
+
+checkOption :: AspellOption -> IO (Maybe String)
+checkOption (UseDictionary d) = do
+    -- Get the list of installed dictionaries and check whether the
+    -- desired dictionary is included.
+    dictListResult <- aspellDictionaries
+    case dictListResult of
+        Left msg -> return $ Just msg
+        Right dictList ->
+            case d `elem` dictList of
+                True -> return Nothing
+                False -> return $ Just $ "Requested dictionary " <> show d <> " is not installed"
+
+-- | Obtain the list of installed Aspell dictionaries.
+aspellDictionaries :: IO (Either String [T.Text])
+aspellDictionaries =
+    tryConvert $
+    (T.pack <$>) <$> lines <$> P.readProcess aspellCommand ["dicts"] ""
 
 optionToArgs :: AspellOption -> [String]
 optionToArgs (UseDictionary d) = ["-d", T.unpack d]
