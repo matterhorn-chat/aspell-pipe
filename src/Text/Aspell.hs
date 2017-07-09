@@ -23,7 +23,9 @@ module Text.Aspell
 where
 
 import qualified Control.Exception as E
-import Control.Monad (forM, when)
+import Control.Monad (forM, when, void)
+import Control.Concurrent (forkIO, killThread)
+import Control.Concurrent.MVar (takeMVar, newEmptyMVar, putMVar)
 import Data.Monoid ((<>))
 import Data.Maybe (fromJust)
 import Text.Read (readMaybe)
@@ -87,22 +89,64 @@ startAspell options = do
             let proc = (P.proc aspellCommand ("-a" : (concat $ optionToArgs <$> options)))
                        { P.std_in = P.CreatePipe
                        , P.std_out = P.CreatePipe
-                       , P.std_err = P.NoStream
+                       , P.std_err = P.CreatePipe
                        }
 
-            (Just inH, Just outH, Nothing, ph) <- P.createProcess proc
-            ident <- T.hGetLine outH
+            (Just inH, Just outH, Just errH, ph) <- P.createProcess proc
 
-            let as = Aspell { aspellProcessHandle  = ph
-                            , aspellStdin          = inH
-                            , aspellStdout         = outH
-                            , aspellIdentification = ident
-                            }
+            -- Set up an mvar to hold the first available aspell output.
+            -- In this we store the first available stdout or stderr
+            -- line; if aspell dies immediately then we can expect a
+            -- stderr read (the error message), but on success we expect
+            -- a stdout read (the identification string). We fork two
+            -- threads: one to read stdout, one stderr. Whichever one
+            -- gets a result first tells us whether Aspell started
+            -- successfully. If the stderr thread wins, the stdout
+            -- thread will get an exception on hGetLine due to stdout
+            -- being closed, so we have to handle that. If the stdout
+            -- thread wins, the stderr thread will block forever and we
+            -- need to kill it.
+            initialResult <- newEmptyMVar
 
-            -- Enable terse mode with aspell to improve performance.
-            T.hPutStrLn inH "!"
+            void $ forkIO $ do
+                identResult <- E.try $ T.hGetLine outH
+                case identResult of
+                    -- A failure means aspell died, so the stderr thread
+                    -- should have something to read.
+                    Left (_::E.SomeException) -> return ()
+                    Right ident -> putMVar initialResult $ Right ident
 
-            return as
+            errThread <- forkIO $ do
+                err <- T.hGetLine errH
+                putMVar initialResult $ Left err
+
+            status <- takeMVar initialResult
+            case status of
+                Left e -> error $ "Error starting aspell: " <> show e
+                Right ident -> do
+                    killThread errThread
+
+                    -- Now that aspell has started and we got an
+                    -- identification string, we need to make sure it
+                    -- looks legitimate before we proceed.
+                    case validIdent ident of
+                        False -> error $ "Unexpected identification string: " <> show ident
+                        True -> do
+                            let as = Aspell { aspellProcessHandle  = ph
+                                            , aspellStdin          = inH
+                                            , aspellStdout         = outH
+                                            , aspellIdentification = ident
+                                            }
+
+                            -- Enable terse mode with aspell to improve performance.
+                            T.hPutStrLn inH "!"
+
+                            return as
+
+validIdent :: T.Text -> Bool
+validIdent s =
+    "@(#) International Ispell Version" `T.isPrefixOf` s &&
+    "but really Aspell" `T.isInfixOf` s
 
 checkOptions :: [AspellOption] -> IO (Maybe String)
 checkOptions [] = return Nothing
