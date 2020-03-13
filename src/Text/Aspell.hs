@@ -24,8 +24,7 @@ where
 
 import qualified Control.Exception as E
 import Control.Monad (forM, when, void)
-import Control.Concurrent (forkIO, killThread)
-import Control.Concurrent.MVar (takeMVar, newEmptyMVar, putMVar)
+import qualified Control.Concurrent.Async as A
 import Data.Monoid ((<>))
 import Data.Maybe (fromJust)
 import Text.Read (readMaybe)
@@ -40,7 +39,7 @@ data Aspell =
     Aspell { aspellProcessHandle  :: P.ProcessHandle
            , aspellStdin          :: Handle
            , aspellStdout         :: Handle
-           , aspellIdentification :: T.Text
+           , aspellIdentification :: T.Text -- ^ startup-reported version string
            }
 
 instance Show Aspell where
@@ -94,43 +93,23 @@ startAspell options = do
 
             (Just inH, Just outH, Just errH, ph) <- P.createProcess proc
 
-            -- Set up an mvar to hold the first available aspell output.
-            -- In this we store the first available stdout or stderr
-            -- line; if aspell dies immediately then we can expect a
-            -- stderr read (the error message), but on success we expect
-            -- a stdout read (the identification string). We fork two
-            -- threads: one to read stdout, one stderr. Whichever one
-            -- gets a result first tells us whether Aspell started
-            -- successfully. If the stderr thread wins, the stdout
-            -- thread will get an exception on hGetLine due to stdout
-            -- being closed, so we have to handle that. If the stdout
-            -- thread wins, the stderr thread will block forever and we
-            -- need to kill it.
-            initialResult <- newEmptyMVar
+            errorAsync <- A.async (T.hGetLine errH)
 
-            void $ forkIO $ do
-                identResult <- E.try $ T.hGetLine outH
-                case identResult of
-                    -- A failure means aspell died, so the stderr thread
-                    -- should have something to read.
-                    Left (_::E.SomeException) -> return ()
-                    Right ident -> putMVar initialResult $ Right ident
+            -- If startup is unsuccessful, stdout will close without output.
+            result <- E.try (T.hGetLine outH) :: IO (Either E.SomeException T.Text)
 
-            errThread <- forkIO $ do
-                err <- T.hGetLine errH
-                putMVar initialResult $ Left err
+            case result of
+                Left{} -> do
+                    e <- A.wait errorAsync
+                    fail ("Error starting aspell: " <> T.unpack e)
 
-            status <- takeMVar initialResult
-            case status of
-                Left e -> error $ "Error starting aspell: " <> show e
                 Right ident -> do
-                    killThread errThread
-
+                    A.cancel errorAsync
                     -- Now that aspell has started and we got an
                     -- identification string, we need to make sure it
                     -- looks legitimate before we proceed.
                     case validIdent ident of
-                        False -> error $ "Unexpected identification string: " <> show ident
+                        False -> fail ("Unexpected identification string: " <> T.unpack ident)
                         True -> do
                             let as = Aspell { aspellProcessHandle  = ph
                                             , aspellStdin          = inH
