@@ -11,7 +11,7 @@ copyright:           2017 Jonathan Daugherty
 category:            Text
 build-type:          Simple
 extra-source-files:  ChangeLog.md
-cabal-version:       >=1.10
+cabal-version:       1.18
 
 extra-doc-files:     README.md
 
