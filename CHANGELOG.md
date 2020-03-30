@@ -1,4 +1,11 @@
 
+0.4
+---
+
+Misc changes:
+ * The package now uses and depends on `async` instead of using raw
+   `forkIO`.
+
 0.3
 ---
 
