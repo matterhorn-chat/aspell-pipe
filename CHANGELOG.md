@@ -1,4 +1,11 @@
 
+0.5
+---
+
+New features:
+ * Added support for passing arguments directly to `aspell` via the new
+   `RawArg` constructor of `AspellOption` (#6)
+
 0.4
 ---
 
