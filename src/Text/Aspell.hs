@@ -75,10 +75,15 @@ data Mistake =
 data AspellOption =
     UseDictionary T.Text
     -- ^ Use the specified dictionary (see aspell -d).
+    | RawArg T.Text
+    -- ^ Provide a command-line argument directly to aspell.
     deriving (Show, Eq)
 
 -- | Start Aspell with the specified options. Returns either an error
 -- message on failure or an Aspell handle on success.
+--
+-- Any 'RawArg's provided in the option list are provided to @aspell@ as
+-- command-line arguments in the order provided.
 startAspell :: [AspellOption] -> IO (Either String Aspell)
 startAspell options = do
     optResult <- checkOptions options
@@ -139,6 +144,7 @@ aspellCommand :: String
 aspellCommand = "aspell"
 
 checkOption :: AspellOption -> IO (Maybe String)
+checkOption (RawArg {}) = return Nothing
 checkOption (UseDictionary d) = do
     -- Get the list of installed dictionaries and check whether the
     -- desired dictionary is included.
@@ -158,6 +164,7 @@ aspellDictionaries =
 
 optionToArgs :: AspellOption -> [String]
 optionToArgs (UseDictionary d) = ["-d", T.unpack d]
+optionToArgs (RawArg val) = [T.unpack val]
 
 -- | Stop a running Aspell instance.
 stopAspell :: Aspell -> IO ()
