@@ -60,12 +60,12 @@ data AspellResponse =
 
 -- | A spelling mistake.
 data Mistake =
-    Mistake { mistakeWord         :: T.Text
+    Mistake { mistakeWord :: T.Text
             -- ^ The original word in misspelled form.
-            , mistakeNearMisses   :: Int
+            , mistakeNearMisses :: Int
             -- ^ The number of alternative correct spellings that were
             -- counted.
-            , mistakeOffset       :: Int
+            , mistakeOffset :: Int
             -- ^ The offset, starting at zero, in the original input
             -- where this misspelling occurred.
             , mistakeAlternatives :: [T.Text]
@@ -76,13 +76,13 @@ data Mistake =
 -- | An Aspell option.
 data AspellOption =
     UseDictionary T.Text
-    -- ^ Use the specified dictionary (see aspell -d).
+    -- ^ Use the specified dictionary (see @aspell -d@).
     | RawArg T.Text
-    -- ^ Provide a command-line argument directly to aspell.
+    -- ^ Provide a command-line argument directly to @aspell@.
     deriving (Show, Eq)
 
 -- | Start Aspell with the specified options. Returns either an error
--- message on failure or an Aspell handle on success.
+-- message on failure or an 'Aspell' handle on success.
 --
 -- Any 'RawArg's provided in the option list are provided to @aspell@ as
 -- command-line arguments in the order provided.
@@ -175,8 +175,9 @@ optionToArgs (RawArg val) = [T.unpack val]
 stopAspell :: Aspell -> IO ()
 stopAspell = P.terminateProcess . aspellProcessHandle
 
--- | Submit user input to Aspell for spell-checking. Returns an
--- AspellResponse for each line of user input.
+-- | Submit input text to Aspell for spell-checking. The input text may
+-- contain multiple lines. This returns an 'AspellResponse' for each
+-- line.
 --
 -- This function is thread-safe and will block until other callers
 -- finish.
