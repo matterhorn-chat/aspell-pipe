@@ -25,6 +25,7 @@ where
 import qualified Control.Exception as E
 import Control.Monad (forM, when, void)
 import qualified Control.Concurrent.Async as A
+import Control.Concurrent.MVar (MVar, newMVar, withMVar)
 import Data.Monoid ((<>))
 import Data.Maybe (fromJust)
 import Text.Read (readMaybe)
@@ -40,6 +41,7 @@ data Aspell =
            , aspellStdin          :: Handle
            , aspellStdout         :: Handle
            , aspellIdentification :: T.Text -- ^ startup-reported version string
+           , aspellLock           :: MVar ()
            }
 
 instance Show Aspell where
@@ -116,10 +118,13 @@ startAspell options = do
                     case validIdent ident of
                         False -> fail ("Unexpected identification string: " <> T.unpack ident)
                         True -> do
+                            mv <- newMVar ()
+
                             let as = Aspell { aspellProcessHandle  = ph
                                             , aspellStdin          = inH
                                             , aspellStdout         = outH
                                             , aspellIdentification = ident
+                                            , aspellLock           = mv
                                             }
 
                             -- Enable terse mode with aspell to improve performance.
@@ -172,8 +177,11 @@ stopAspell = P.terminateProcess . aspellProcessHandle
 
 -- | Submit user input to Aspell for spell-checking. Returns an
 -- AspellResponse for each line of user input.
+--
+-- This function is thread-safe and will block until other callers
+-- finish.
 askAspell :: Aspell -> T.Text -> IO [AspellResponse]
-askAspell as t = do
+askAspell as t = withMVar (aspellLock as) $ const $ do
     -- Send the user's input. Prefix with "^" to ensure that the line is
     -- checked even if it contains metacharacters.
     forM (T.lines t) $ \theLine -> do
