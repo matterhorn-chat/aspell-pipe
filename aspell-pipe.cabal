@@ -1,5 +1,5 @@
 name:                aspell-pipe
-version:             0.5
+version:             0.6
 synopsis:            Pipe-based interface to the Aspell program
 description:         A pipe-based interface to the Aspell program (no
                      dynamic linking required).

@@ -1,4 +1,10 @@
 
+0.6
+---
+
+Changes:
+ * The `askAspell` function is now thread-safe.
+
 0.5
 ---
 
